@@ -1,0 +1,26 @@
+# Local Python environment
+.venv/
+__pycache__/
+*.py[cod]
+
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+*apiKey*.csv
+本地开发配置.md
+
+# Local planning documents
+AutoMind.docx
+开发排期.docx
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+

@@ -1,0 +1,73 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    container_name: automind-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: automind-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://automind:${POSTGRES_PASSWORD:-automind_dev_password}@postgres:5432/automind
+    command:
+      - sh
+      - -c
+      - python -m db.init_db && exec uvicorn main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres:                                # 定义一个叫 postgres 的服务（数据库容器）
+    image: pgvector/pgvector:0.8.1-pg16    # 镜像：自带向量扩展(pgvector)的 PostgreSQL 16，RAG 存向量全靠它
+    container_name: automind-postgres      # 容器名，方便 docker 命令直接点名
+    restart: unless-stopped                # 容器挂了自动重启（除非手动停）
+    environment:                           # 容器内数据库的初始化配置
+      POSTGRES_DB: automind                # 自动建一个名为 automind 的库
+      POSTGRES_USER: automind              # 数据库用户名
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-automind_dev_password}   # 密码：优先取 .env 的 POSTGRES_PASSWORD，没配就用默认值
+    ports:
+      - "5432:5432"                        # 端口映射：本机 5432 → 容器 5432（后端连 127.0.0.1:5432 就进容器）
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  postgres_data:
+    name: automind-postgres-data
